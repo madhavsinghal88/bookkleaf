@@ -31,6 +31,7 @@ export function classifyByRules(
   if (CRITICAL.test(text)) priority = "CRITICAL";
   else if (category === "ISBN_METADATA" && /\b(isbn|wrong|duplicate)\b/i.test(text)) priority = "HIGH"; // policy: ISBN errors are high priority
   else if (category === "PRINTING_QUALITY") priority = "HIGH";
+  else if (category === "DISTRIBUTION_AVAILABILITY" && book?.status === "Published & Live" && /unavailable|out of stock|can'?t (buy|find)|cannot (buy|find)|not (showing|available|live)/i.test(text)) priority = "HIGH"; // live book not purchasable
   else if (URGENT.test(text)) priority = "HIGH";
   else if (LOW.test(text)) priority = "LOW";
 

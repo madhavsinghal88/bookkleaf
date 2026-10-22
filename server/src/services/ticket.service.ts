@@ -192,10 +192,10 @@ async function loadTicketFor(user: AuthUser, id: number) {
 }
 
 export async function getTicket(user: AuthUser, id: number) {
-  await loadTicketFor(user, id);
   const isAdmin = user.role === "ADMIN";
 
-  const ticket = await prisma.ticket.findUniqueOrThrow({
+  // One query (this endpoint is polled), with the ownership check done on the result.
+  const ticket = await prisma.ticket.findUnique({
     where: { id },
     include: {
       book: true,
@@ -210,6 +210,7 @@ export async function getTicket(user: AuthUser, id: number) {
       },
     },
   });
+  if (!ticket || (!isAdmin && ticket.authorId !== user.authorId)) throw notFound("Ticket");
 
   if (isAdmin) return ticket;
 
@@ -333,7 +334,9 @@ export async function getDraft(admin: AuthUser, id: number, opts: { regenerate?:
     },
   });
 
-  const messageCount = ticket.messages.length;
+  // Cache key: number of replies. Internal notes don't invalidate the draft
+  // (the admin can press "Regenerate" to fold a new note in).
+  const messageCount = ticket.messages.filter((m) => m.kind === "REPLY").length;
   if (ticket.aiDraft && ticket.aiDraft.messageCount === messageCount && !opts.regenerate) {
     return { ...ticket.aiDraft, source: "AI" as const, cached: true };
   }
