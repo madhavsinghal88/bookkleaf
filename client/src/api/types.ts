@@ -118,8 +118,16 @@ export interface TeamMember {
   email: string;
 }
 
+export interface ChatMessage {
+  id: string;
+  role: "USER" | "ASSISTANT";
+  content: string;
+  source: "AI" | "RULES" | "ADMIN" | null;
+  createdAt: string;
+}
+
 export interface AiUsageRow {
-  purpose: "CLASSIFY" | "DRAFT";
+  purpose: "CLASSIFY" | "DRAFT" | "CHAT_SUPPORT" | "CHAT_SALES";
   calls: number;
   failures: number;
   avgLatencyMs: number | null;

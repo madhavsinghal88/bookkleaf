@@ -126,6 +126,26 @@ export const CATEGORY_LABELS = Object.fromEntries(
   Object.entries(CATEGORY_KNOWLEDGE).map(([key, value]) => [key, value.label]),
 ) as Record<TicketCategory, string>;
 
+// Policies only, no sample dialogues. Cached once and reused for every author
+// chat turn so a question about any topic still has the right rule.
+export const SUPPORT_POLICY = Object.values(CATEGORY_KNOWLEDGE)
+  .map((section) => section.policy)
+  .join("\n\n");
+
+// What a prospective author can be told. Prices that are not listed here must
+// not be invented; Bestseller Breakthrough is quoted by the team.
+export const SALES_KNOWLEDGE = `## Publishing with BookLeaf
+- BookLeaf is a self-publishing company in India and the US. We handle cover design, typesetting, ISBN assignment, printing, distribution, and royalty management.
+- Standard Free: no upfront cost. BookLeaf is paid from its 20% share of net profit.
+- Bestseller Breakthrough: a paid premium package that adds marketing and wider distribution on top of the same publishing workflow. The current price is quoted by the BookLeaf team. Never invent a price, discount, or inclusion that is not listed here.
+- Production stages: Manuscript Received → Editing (if opted) → Cover Design → Typesetting → Proofreading → ISBN Assignment → Printing → Distribution Setup → Published & Live.
+- Delays usually happen at Cover Design (waiting for the author's approval) and Proofreading (revision rounds).
+- Every BookLeaf book gets a unique ISBN under BookLeaf's imprint. An author who wants their own imprint obtains that ISBN independently.
+- Listings go on Amazon India, Flipkart, Amazon US, Amazon UK, and the BookLeaf Store, typically within 7–10 business days after publication is complete.
+- Printing is in-house in Delhi, with overflow at Repro India or Epitome Books. Standard print turnaround is 5–7 business days. Defective copies are reprinted free after the author shares photos.
+- Royalty: 80% of net profit to the author, 20% to BookLeaf. Net profit = MRP minus printing cost, platform commission (Amazon/Flipkart), and shipping. Calculated quarterly and paid within 45 days of the quarter ending, by bank transfer, once the balance reaches ₹1,000.
+- This chat cannot create an account or accept a manuscript. A new author starts by writing to the BookLeaf team; an existing author signs in to the Author Portal.`;
+
 export function categorySection(category: TicketCategory): string {
   const kb = CATEGORY_KNOWLEDGE[category];
   const examples = kb.example

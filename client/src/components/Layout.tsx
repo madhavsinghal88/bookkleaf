@@ -1,5 +1,6 @@
 import { NavLink, Outlet } from "react-router";
 import { useAuth } from "../auth/AuthContext";
+import { ChatWidget } from "./ChatWidget";
 
 const AUTHOR_LINKS = [
   { to: "/books", label: "My Books" },
@@ -41,6 +42,7 @@ export function Layout() {
       <main className="container">
         <Outlet />
       </main>
+      {user?.role === "AUTHOR" && <ChatWidget kind="support" />}
     </div>
   );
 }

@@ -11,6 +11,7 @@ import { authRouter } from "./routes/auth.routes.js";
 import { booksRouter } from "./routes/books.routes.js";
 import { ticketsRouter } from "./routes/tickets.routes.js";
 import { adminRouter } from "./routes/admin.routes.js";
+import { chatRouter } from "./routes/chat.routes.js";
 
 // Built React app. When it exists (e.g. `npm run build && npm start` on a
 // plain Node host) Express serves the UI too. On Vercel the client is its own
@@ -32,6 +33,8 @@ export function createApp() {
 
   // Public: login. Everything below requires a valid token.
   app.use("/api/auth", authRouter);
+  // Sales chat is public; support routes on this router enforce auth themselves.
+  app.use("/api/chat", chatRouter);
   app.use("/api/books", requireAuth, booksRouter);
   app.use("/api/tickets", requireAuth, ticketsRouter);
   app.use("/api/admin", requireAuth, requireRole("ADMIN"), adminRouter);

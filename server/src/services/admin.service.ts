@@ -31,7 +31,7 @@ export async function getStats() {
       prisma.ticketMessage.count({ where: { kind: "REPLY", sender: { role: "ADMIN" } } }),
     ]);
 
-  const purposes = ["CLASSIFY", "DRAFT"] as const;
+  const purposes = ["CLASSIFY", "DRAFT", "CHAT_SUPPORT", "CHAT_SALES"] as const;
   const usage = purposes.map((purpose) => {
     const rows = aiCalls.filter((r) => r.purpose === purpose);
     const ok = rows.filter((r) => r.success);

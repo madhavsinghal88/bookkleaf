@@ -6,6 +6,13 @@ import { PRIORITY_LABELS, STATUS_LABELS, PRIORITIES, STATUSES } from "../../lib/
 
 const pct = (n: number | null) => (n == null ? "—" : `${Math.round(n * 100)}%`);
 
+const PURPOSE_LABELS: Record<string, string> = {
+  CLASSIFY: "Classification",
+  DRAFT: "Reply drafts",
+  CHAT_SUPPORT: "Author chat",
+  CHAT_SALES: "Sales chat",
+};
+
 // Queue health plus how the AI is performing and what it costs.
 export function InsightsPage() {
   const { data, error } = usePolling(() => api.get<Stats>("/admin/stats"), 30_000);
@@ -41,7 +48,7 @@ export function InsightsPage() {
       <div className={`banner ${ai.status.enabled ? "banner-success" : "banner-warn"}`}>
         {ai.status.enabled
           ? "AI is online: tickets are auto-classified and replies are drafted from the knowledge base."
-          : `AI is offline (${ai.status.reason}). Tickets are classified by keyword rules and drafts fall back to templates.`}
+          : `AI is offline (${ai.status.reason}). Tickets use keyword rules, drafts use templates, and both chats answer from the BookLeaf guide.`}
       </div>
       <div className="stat-row">
         <div className="stat card">
@@ -81,7 +88,7 @@ export function InsightsPage() {
           <tbody>
             {ai.last30Days.map((r) => (
               <tr key={r.purpose}>
-                <td>{r.purpose === "CLASSIFY" ? "Classification" : "Reply drafts"}</td>
+                <td>{PURPOSE_LABELS[r.purpose] ?? r.purpose}</td>
                 <td>{r.calls}</td>
                 <td>{r.failures}</td>
                 <td>{r.avgLatencyMs ? `${(r.avgLatencyMs / 1000).toFixed(1)}s` : "—"}</td>

@@ -2,6 +2,7 @@ import { useState, type FormEvent } from "react";
 import { Navigate, useNavigate } from "react-router";
 import { useAuth } from "../auth/AuthContext";
 import { ApiError } from "../api/client";
+import { ChatWidget } from "../components/ChatWidget";
 
 // Demo accounts from the seeded dataset, so reviewers can log in in one click.
 const DEMO_ACCOUNTS = [
@@ -78,6 +79,7 @@ export function LoginPage() {
           ))}
         </div>
       </div>
+      <ChatWidget kind="sales" startOpen />
     </div>
   );
 }

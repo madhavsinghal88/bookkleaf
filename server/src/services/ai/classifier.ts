@@ -1,11 +1,10 @@
 // Ticket classification: category + priority + one-line summary.
 // AI first; keyword rules if the AI is unavailable. Never throws.
 import { z } from "zod";
-import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import type { Book, TicketCategory, TicketPriority } from "../../generated/prisma/client.js";
 import { CATEGORY_LABELS } from "./knowledge-base.js";
 import { describeAccount } from "./facts.js";
-import { callAi, models } from "./llm.js";
+import { completeStructured, models } from "./llm.js";
 import { classifyByRules } from "./rules.js";
 
 const CATEGORIES = Object.keys(CATEGORY_LABELS) as [TicketCategory, ...TicketCategory[]];
@@ -52,22 +51,21 @@ export async function classifyTicket(input: {
   const focusBook = input.books.find((b) => b.id === input.bookId) ?? null;
 
   try {
-    const result = await callAi({ purpose: "CLASSIFY", model: models.classify, ticketId: input.ticketId }, async (client) => {
-      const response = await client.messages.parse({
-        model: models.classify,
-        max_tokens: 1024,
-        output_config: { effort: "low", format: zodOutputFormat(ClassificationSchema) },
-        system: [{ type: "text", text: SYSTEM_PROMPT, cache_control: { type: "ephemeral" } }],
+    const result = await completeStructured(
+      { purpose: "CLASSIFY", model: models.classify, ticketId: input.ticketId },
+      {
+        schema: ClassificationSchema,
+        name: "ticket_classification",
+        system: SYSTEM_PROMPT,
+        maxTokens: 400,
         messages: [
           {
             role: "user",
             content: `<account_facts>\n${describeAccount({ authorName: input.authorName, books: input.books, focusBookId: input.bookId })}\n</account_facts>\n\n<ticket>\nSubject: ${input.subject}\n\n${input.description.slice(0, 4000)}\n</ticket>`,
           },
         ],
-      });
-      if (!response.parsed_output) throw new Error(`Unparseable classification (stop_reason: ${response.stop_reason})`);
-      return { result: response.parsed_output, usage: response.usage };
-    });
+      },
+    );
     return { ...result, source: "AI" };
   } catch {
     return { ...classifyByRules(input.subject, input.description, focusBook), source: "RULES" };

@@ -1,11 +1,10 @@
 // AI-drafted replies for admins. The admin always reviews and edits before
 // anything reaches the author; the draft is a starting point, never auto-sent.
 import { z } from "zod";
-import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import type { Book, TicketCategory } from "../../generated/prisma/client.js";
 import { COMPANY_OVERVIEW, TONE_GUIDELINES, CATEGORY_KNOWLEDGE, categorySection } from "./knowledge-base.js";
 import { describeAccount } from "./facts.js";
-import { callAi, models } from "./llm.js";
+import { completeStructured, models } from "./llm.js";
 
 const DraftSchema = z.object({
   reply: z.string().describe("The full reply to the author, ready to send after review"),
@@ -68,25 +67,18 @@ export async function draftReply(input: {
     .join("\n\n");
 
   try {
-    const result = await callAi({ purpose: "DRAFT", model: models.draft, ticketId: input.ticketId }, async (client) => {
-      const response = await client.messages.parse({
-        model: models.draft,
-        max_tokens: 4000,
-        // Support replies don't need deep reasoning; low effort keeps latency and cost down.
-        output_config: { effort: "low", format: zodOutputFormat(DraftSchema) },
-        system: [
-          // Breakpoint 1: shared by every draft.
-          { type: "text", text: BASE_SYSTEM, cache_control: { type: "ephemeral" } },
-          // Breakpoint 2: shared by every draft in this category.
-          { type: "text", text: categorySection(input.category), cache_control: { type: "ephemeral" } },
-        ],
+    const result = await completeStructured(
+      { purpose: "DRAFT", model: models.draft, ticketId: input.ticketId },
+      {
+        schema: DraftSchema,
+        name: "support_draft",
+        // Stable prefix (persona, then this category's policy) so repeat drafts
+        // in the same category can hit OpenAI's automatic prompt cache.
+        system: `${BASE_SYSTEM}\n\n${categorySection(input.category)}`,
+        maxTokens: 1200,
         messages: [{ role: "user", content: userContent }],
-      });
-      if (response.stop_reason === "refusal" || !response.parsed_output) {
-        throw new Error(`No usable draft (stop_reason: ${response.stop_reason})`);
-      }
-      return { result: response.parsed_output, usage: response.usage };
-    });
+      },
+    );
     return { ...result, source: "AI", model: models.draft };
   } catch {
     return templateDraft(input);

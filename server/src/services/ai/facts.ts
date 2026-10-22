@@ -7,9 +7,11 @@ export const PAYOUT_THRESHOLD = 1000;
 const PAYOUT_WINDOW_DAYS = 45;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-const fmtDate = (d: Date) =>
+export const formatDate = (d: Date) =>
   d.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
-const fmtInr = (n: number) => `₹${n.toLocaleString("en-IN")}`;
+export const formatInr = (n: number) => `₹${n.toLocaleString("en-IN")}`;
+const fmtDate = formatDate;
+const fmtInr = formatInr;
 
 function quarterEnd(year: number, quarterIndex: number): Date {
   // quarterIndex 0..3 -> last day of Mar/Jun/Sep/Dec
@@ -41,7 +43,7 @@ export function nextPayout(today: Date) {
 
 // A payout is "possibly overdue" when money above the threshold is pending
 // and no payout has happened within the last full cycle (quarter + 45 days).
-function payoutOverdue(book: Book, today: Date): boolean {
+export function isPayoutOverdue(book: Book, today = new Date()): boolean {
   if (book.royaltyPending < PAYOUT_THRESHOLD) return false;
   const reference = book.lastRoyaltyPayoutAt ?? book.publicationDate;
   if (!reference) return false;
@@ -67,7 +69,7 @@ export function describeBook(book: Book, today = new Date()): string {
   if (book.royaltyPending > 0 && book.royaltyPending < PAYOUT_THRESHOLD) {
     lines.push(`  Pending amount is below the ${fmtInr(PAYOUT_THRESHOLD)} threshold, so it rolls over to the next quarter.`);
   }
-  if (payoutOverdue(book, today)) {
+  if (isPayoutOverdue(book, today)) {
     lines.push("  FLAG: pending royalty above threshold with no payout in over a full cycle. Possibly overdue; treat as BookLeaf's responsibility to resolve.");
   }
   return lines.join("\n");
