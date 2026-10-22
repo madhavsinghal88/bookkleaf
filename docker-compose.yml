@@ -1,0 +1,15 @@
+# Local Postgres for development. Production uses a managed Postgres (e.g. Neon).
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: bookleaf
+      POSTGRES_PASSWORD: bookleaf
+      POSTGRES_DB: bookleaf
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:
