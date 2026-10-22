@@ -97,14 +97,10 @@ async function main() {
     readFileSync(new URL("./data/bookleaf_sample_data.json", import.meta.url), "utf8"),
   ) as { authors: SeedAuthor[] };
 
-  // Children first, so foreign keys never block the reset.
-  await prisma.aiCallLog.deleteMany();
-  await prisma.aiDraft.deleteMany();
-  await prisma.ticketMessage.deleteMany();
-  await prisma.ticket.deleteMany();
-  await prisma.book.deleteMany();
-  await prisma.author.deleteMany();
-  await prisma.user.deleteMany();
+  // Full reset, including id sequences, so ticket numbers start at #1 again.
+  await prisma.$executeRawUnsafe(
+    'TRUNCATE "AiCallLog", "AiDraft", "TicketMessage", "Ticket", "Book", "Author", "User" RESTART IDENTITY CASCADE',
+  );
 
   const [authorHash, adminHash] = await Promise.all([
     bcrypt.hash(DEMO_AUTHOR_PASSWORD, 10),

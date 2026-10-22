@@ -169,6 +169,8 @@ model TicketMessage {
 model AiDraft {
   ticketId     Int      @id
   content      String
+  // Things the admin should verify before sending, e.g. "Confirm bank details are linked".
+  checklist    String[] @default([])
   model        String
   messageCount Int
   createdAt    DateTime @default(now())

@@ -12,6 +12,11 @@ const EnvSchema = z.object({
   JWT_SECRET: z.string().min(32, "JWT_SECRET must be at least 32 characters"),
   CLIENT_ORIGIN: z.string().default("http://localhost:5173"),
   ANTHROPIC_API_KEY: z.string().optional(),
+  // Classification is short and high-volume: a small, fast model is enough.
+  AI_CLASSIFY_MODEL: z.string().default("claude-haiku-5-5"),
+  // Drafts are read by authors, so writing quality matters more than cost;
+  // each draft is generated once per ticket state and cached.
+  AI_DRAFT_MODEL: z.string().default("claude-opus-5-5"),
 });
 
 const parsed = EnvSchema.safeParse(process.env);
