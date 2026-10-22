@@ -6,8 +6,9 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { env } from "./config/env.js";
 
-// Built React app. In production one service serves both the API and the UI
-// from the same origin, which keeps auth simple and avoids CORS entirely.
+// Built React app. When it exists (e.g. `npm run build && npm start` on a
+// plain Node host) Express serves the UI too. On Vercel the client is its own
+// service and express.static is ignored, so this block is inert there.
 const clientDist = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../client/dist");
 
 // The app is built separately from index.ts (which only calls listen) so it
