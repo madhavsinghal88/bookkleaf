@@ -1,0 +1,197 @@
+// BookLeaf Author Support Portal — database schema.
+// Amounts are stored as integer rupees, matching the source dataset.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  AUTHOR
+  ADMIN
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+enum TicketCategory {
+  ROYALTY_PAYMENTS
+  ISBN_METADATA
+  PRINTING_QUALITY
+  DISTRIBUTION_AVAILABILITY
+  BOOK_STATUS_PRODUCTION
+  GENERAL_INQUIRY
+}
+
+enum TicketPriority {
+  CRITICAL
+  HIGH
+  MEDIUM
+  LOW
+}
+
+// Who produced a ticket's category/priority. Lets the UI show "AI suggested"
+// vs "set by admin", and lets us measure how often admins override the AI.
+enum ClassificationSource {
+  AI
+  RULES // keyword fallback, used when the AI call fails or no key is set
+  ADMIN
+}
+
+enum MessageKind {
+  REPLY // visible to the author
+  INTERNAL_NOTE // admin-only, never returned by author endpoints
+}
+
+enum AiPurpose {
+  CLASSIFY
+  DRAFT
+}
+
+// Login identity. Kept separate from Author so admins (who have no books)
+// and authors share one auth path, and role checks happen in one place.
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String
+  role         Role
+  createdAt    DateTime @default(now())
+
+  author          Author?
+  assignedTickets Ticket[]        @relation("AssignedTickets")
+  messages        TicketMessage[]
+}
+
+model Author {
+  id         String   @id // dataset id, e.g. "AUTH001"
+  userId     String   @unique
+  name       String
+  email      String   @unique
+  phone      String?
+  city       String?
+  joinedDate DateTime @db.Date
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  books   Book[]
+  tickets Ticket[]
+}
+
+model Book {
+  id              String    @id // dataset id, e.g. "BK001"
+  authorId        String
+  title           String
+  isbn            String    @unique
+  genre           String
+  // Free text because the dataset includes production sub-stages,
+  // e.g. "In Production - Cover Design".
+  status          String
+  publicationDate DateTime? @db.Date
+  // Nullable: books still in production have no price or royalty rate yet.
+  mrp                  Int?
+  authorRoyaltyPerCopy Int?
+  totalCopiesSold      Int       @default(0)
+  totalRoyaltyEarned   Int       @default(0)
+  royaltyPaid          Int       @default(0)
+  royaltyPending       Int       @default(0)
+  lastRoyaltyPayoutAt  DateTime? @db.Date
+  printPartner         String?
+  availableOn          String[]
+
+  author  Author   @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  tickets Ticket[]
+
+  @@index([authorId])
+}
+
+model Ticket {
+  id          Int          @id @default(autoincrement()) // short numeric id is easy to quote, e.g. "ticket #12"
+  authorId    String
+  bookId      String? // null = "General / Account Level"
+  subject     String
+  description String
+  status      TicketStatus @default(OPEN)
+
+  // Null until classified. Ticket creation never waits on the AI.
+  category         TicketCategory?
+  categorySource   ClassificationSource?
+  priority         TicketPriority?
+  prioritySource   ClassificationSource?
+  aiSummary        String? // one-line summary from the classifier, shown in the queue
+  classifiedAt     DateTime?
+
+  attachmentName String? // UI-only attachment: we store the filename, not the file
+  assigneeId     String?
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  firstResponseAt DateTime?
+  resolvedAt      DateTime?
+
+  author   Author          @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  book     Book?           @relation(fields: [bookId], references: [id], onDelete: SetNull)
+  assignee User?           @relation("AssignedTickets", fields: [assigneeId], references: [id], onDelete: SetNull)
+  messages TicketMessage[]
+  aiDraft  AiDraft?
+  aiCalls  AiCallLog[]
+
+  @@index([status, priority, createdAt])
+  @@index([authorId, createdAt])
+}
+
+model TicketMessage {
+  id        String      @id @default(cuid())
+  ticketId  Int
+  senderId  String
+  kind      MessageKind @default(REPLY)
+  body      String
+  // True when an admin sent a reply that started from the AI draft.
+  fromAiDraft Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  sender User   @relation(fields: [senderId], references: [id])
+
+  @@index([ticketId, createdAt])
+}
+
+// Cached AI draft per ticket. Re-opening a ticket reuses the draft instead of
+// paying for a new generation; it is regenerated only when the conversation
+// has changed (tracked by messageCount) or the admin asks for a new one.
+model AiDraft {
+  ticketId     Int      @id
+  content      String
+  model        String
+  messageCount Int
+  createdAt    DateTime @default(now())
+
+  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+}
+
+// One row per LLM call: the evidence for cost tracking and failure monitoring.
+model AiCallLog {
+  id                  String    @id @default(cuid())
+  ticketId            Int?
+  purpose             AiPurpose
+  model               String
+  success             Boolean
+  errorMessage        String?
+  inputTokens         Int?
+  outputTokens        Int?
+  cacheReadTokens     Int?
+  cacheCreationTokens Int?
+  latencyMs           Int
+  createdAt           DateTime  @default(now())
+
+  ticket Ticket? @relation(fields: [ticketId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+}
