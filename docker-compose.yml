@@ -1,4 +1,4 @@
-# Local Postgres for development. Production uses a managed Postgres (e.g. Neon).
+# Optional offline Postgres. The project normally uses Neon (see .env.example).
 services:
   db:
     image: postgres:16-alpine

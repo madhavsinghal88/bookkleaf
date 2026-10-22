@@ -16,7 +16,7 @@ bookleaf/
 │       ├── middleware/ Auth, RBAC, validation, error handling
 │       ├── services/  Business logic (tickets, AI, etc.)
 │       └── lib/       Shared helpers
-├── docker-compose.yml Local Postgres
+├── docker-compose.yml Optional offline Postgres (primary DB is Neon)
 └── .env.example       Required environment variables
 ```
 
@@ -25,10 +25,15 @@ bookleaf/
 ```bash
 nvm use                       # Node 22
 npm install                   # installs both workspaces
-npm run db:up                 # start local Postgres (Docker)
-cp .env.example server/.env   # then fill in values
+cp .env.example server/.env   # fill in Neon URLs + JWT secret
+npm run db:migrate --workspace server   # create tables
+npm run db:seed --workspace server      # load sample dataset
 npm run dev                   # API on :4000, client on :5173
 ```
+
+The database is hosted on [Neon](https://neon.com) (serverless Postgres).
+The app connects through Neon's pooled endpoint; Prisma migrations use the
+direct endpoint (`DIRECT_URL`).
 
 _More sections (architecture, AI integration, API docs) will be added as the
 project develops._
