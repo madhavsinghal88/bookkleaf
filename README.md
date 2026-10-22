@@ -1,39 +1,245 @@
 # BookLeaf Author Support & Communication Portal
 
-A web app with an author-facing portal and an admin-facing portal for handling
-author support queries, with AI-assisted ticket classification, prioritisation
-and response drafting.
+A web app for BookLeaf Publishing's author support, with two interfaces:
 
-## Project structure
+- **Author Portal**: authors log in, see their books and royalties, raise support queries, and follow replies live.
+- **Support Desk (admin)**: the ops team works an urgency-sorted queue where every ticket is **auto-classified and prioritised by AI**, and each ticket opens with an **AI-drafted reply grounded in the BookLeaf Knowledge Base** for the agent to review, edit and send.
 
-```
-bookleaf/
-├── client/            React + Vite + TypeScript (author & admin UIs)
-├── server/            Express + TypeScript REST API
-│   └── src/
-│       ├── config/    Environment validation
-│       ├── routes/    HTTP route definitions
-│       ├── middleware/ Auth, RBAC, validation, error handling
-│       ├── services/  Business logic (tickets, AI, etc.)
-│       └── lib/       Shared helpers
-├── docker-compose.yml Optional offline Postgres (primary DB is Neon)
-└── .env.example       Required environment variables
-```
+**Live demo:** `https://<your-vercel-domain>` · **Stack:** React + Vite · Express + TypeScript · PostgreSQL (Neon) + Prisma · Claude API · Vercel
+
+---
+
+## Test credentials
+
+| Role | Email | Password |
+|---|---|---|
+| Admin | `admin@bookleaf.com` | `admin123` |
+| Admin | `ops@bookleaf.com` | `admin123` |
+| Author | any author email from the dataset, e.g. `priya.sharma@email.com` | `author123` |
+
+Useful authors for edge cases:
+
+| Author | Why |
+|---|---|
+| `ananya.reddy@email.com` | Never paid; ₹2,546 pending (AI flags it as possibly overdue) |
+| `sneha.kulkarni@email.com` | Has a book still in production (Cover Design) |
+| `kavita.deshmukh@email.com` | Book in Typesetting, plus ₹850 pending (below the ₹1,000 payout threshold) |
+| `meera.nair@email.com` | Fully paid up; has a resolved ticket |
+
+The login page has one-click buttons for these accounts. The database is seeded with the provided dataset (10 authors, 18 books) and four sample tickets.
+
+---
 
 ## Running locally
 
+Requirements: Node 20+ and a Postgres database (a free [Neon](https://neon.com) project, or `docker compose up -d db` for a local one).
+
 ```bash
-nvm use                       # Node 22
-npm install                   # installs both workspaces
-cp .env.example server/.env   # fill in Neon URLs + JWT secret
-npm run db:migrate --workspace server   # create tables
-npm run db:seed --workspace server      # load sample dataset
-npm run dev                   # API on :4000, client on :5173
+npm install                              # installs both workspaces
+cp .env.example server/.env              # then fill in the values (see below)
+npm run db:migrate --workspace server    # create tables
+npm run db:seed --workspace server       # load the sample dataset (resets data)
+npm run dev                              # API on :4000, client on :5173
 ```
 
-The database is hosted on [Neon](https://neon.com) (serverless Postgres).
-The app connects through Neon's pooled endpoint; Prisma migrations use the
-direct endpoint (`DIRECT_URL`).
+Open http://localhost:5173. Vite proxies `/api` to the Express server.
 
-_More sections (architecture, AI integration, API docs) will be added as the
-project develops._
+### Environment variables (`server/.env`)
+
+| Variable | Required | Purpose |
+|---|---|---|
+| `DATABASE_URL` | yes | Postgres URL (Neon *pooled* endpoint) used by the app |
+| `DIRECT_URL` | for migrations | Neon *direct* endpoint, used by Prisma Migrate |
+| `JWT_SECRET` | yes | ≥32 random characters (`openssl rand -hex 32`) |
+| `ANTHROPIC_API_KEY` | no | Enables AI. Without it the app runs with rule-based classification and template drafts |
+| `AI_CLASSIFY_MODEL` | no | Default `claude-haiku-5-5` |
+| `AI_DRAFT_MODEL` | no | Default `claude-opus-5-5` |
+| `CLIENT_ORIGIN` | no | CORS origin for local development, default `http://localhost:5173` |
+
+All configuration is validated at startup ([server/src/config/env.ts](server/src/config/env.ts)), so a missing secret fails fast.
+
+### Deployment
+
+The app is deployed on Vercel as one project with two [services](https://vercel.com/docs/services) ([vercel.json](vercel.json)): `/api/*` routes to the Express service and everything else to the Vite client, all on one domain. The server build applies Prisma migrations to Neon. Set the variables above in the Vercel project settings; nothing secret is committed.
+
+---
+
+## Architecture
+
+```
+client/  React SPA ──fetch /api──►  server/  Express REST API ──Prisma──► Neon Postgres
+                                       │
+                                       └──► Claude API (classification, reply drafts)
+```
+
+```
+server/src/
+├── config/env.ts          Validated environment (fail fast)
+├── middleware/            auth (JWT, requireRole), error handler
+├── routes/                HTTP layer: parse/validate input, call services
+├── services/              Business logic: tickets, books, auth, admin stats
+│   └── ai/                AI integration: llm wrapper, classifier, drafter,
+│                          knowledge base, account facts, rule fallbacks
+├── lib/                   prisma client, errors, validation helper
+└── generated/prisma/      Generated Prisma client (not committed)
+client/src/
+├── api/                   fetch wrapper + response types
+├── auth/                  session context
+├── hooks/usePolling.ts    near-real-time refresh
+├── components/            layout, thread, badges
+└── pages/author|admin/    one file per screen
+```
+
+### Key decisions
+
+- **Layers.** Routes only parse input and shape output; services hold the rules (who can see what, status transitions, AI orchestration). The AI code sits behind two functions, `classifyTicket` and `draftReply`, and neither of them throws.
+- **Data model** ([schema.prisma](server/prisma/schema.prisma)):
+  - **Users and authors are separate tables.** `User` holds the login and role; `Author` holds the profile. Admins have no books, and all login handling lives in one place.
+  - **Ticket messages have a kind.** `TicketMessage.kind` is either `REPLY` or `INTERNAL_NOTE`. Author endpoints filter internal notes out in the SQL query itself, so a note can't reach an author through a serialisation mistake.
+  - **Classification records its source.** `categorySource` and `prioritySource` are `AI`, `RULES` or `ADMIN`. Admin overrides are never overwritten by re-classification, and the Insights page uses these fields to measure how often humans disagree with the AI.
+  - **Every AI call is logged.** `AiCallLog` holds one row per call (tokens, cache hits, latency, error). This is the evidence behind the cost and failure numbers.
+  - **Drafts are cached.** `AiDraft` stores one draft per ticket and is reused until the conversation changes.
+- **Access control is enforced in the API.** Authors are scoped to their own `authorId` in every query, and another author's resource returns 404, not 403, so ticket and book IDs can't be probed. Admin routes are behind `requireRole("ADMIN")`. The client-side route guard is only a convenience.
+- **Real time uses polling, not WebSockets or SSE.** Ticket views poll every 5 seconds while the tab is visible. Express sets ETags, so an unchanged poll returns `304` with no body. The API runs as Vercel serverless functions, which can't hold long-lived connections, and the brief allows polling. In tests, an admin's reply appeared on the author's screen in about 4 seconds.
+- **The ticket is saved before any AI runs.** `POST /api/tickets` saves and returns `201` immediately. Classification runs afterwards through Vercel's `waitUntil`, so a slow or failed AI call never blocks an author. If an instance dies mid-call, any ticket still unclassified after 30 seconds is picked up the next time an admin loads the queue, with no scheduler needed.
+- **Prisma + Postgres on Neon.** The schema is relational (authors → books → tickets → messages) and benefits from types and migrations. Neon is serverless Postgres with a connection pooler, which suits serverless functions.
+
+---
+
+## AI integration
+
+### What the AI does
+
+| Feature | When | Model | Output |
+|---|---|---|---|
+| Classification | Each new ticket, in the background | `claude-haiku-5-5` (low effort) | `{ category, priority, summary }` via structured outputs (Zod schema) |
+| Reply draft | Admin opens a ticket that's waiting on BookLeaf | `claude-opus-5-5` (low effort) | `{ reply, checklist }` via structured outputs |
+
+**Why these models:**
+- **Classification** is a short, high-volume task with a fixed label set. Haiku 5.5 handles it at about $0.0002 per ticket, and the brief recommends Haiku for this use.
+- **Drafts** are customer-facing writing that must follow the tone guide and use exact figures, so quality matters most there. Opus 5.5 at low effort gives strong writing for a modest cost, and each draft is generated once per conversation state.
+
+Both models are environment variables, so switching them (for example drafts to `claude-sonnet-5-5`) needs no code change.
+
+### Prompt design
+
+([server/src/services/ai/](server/src/services/ai/))
+
+- **The knowledge base is split by category** ([knowledge-base.ts](server/src/services/ai/knowledge-base.ts)).
+  - The persona, tone guidelines and company overview form one base block that every draft shares.
+  - Each category has its own policy section plus the matching sample query and response from the brief.
+  - A royalty draft therefore never carries ISBN or printing policy.
+- **Facts are computed in code, not by the model** ([facts.ts](server/src/services/ai/facts.ts)).
+  - Before each call, the server builds a short account summary: the book's status, sales, paid and pending royalty, and last payout.
+  - It also works out the next payout deadline from the quarterly + 45-day rule, whether the pending amount is below the ₹1,000 threshold, and whether a payout looks overdue.
+  - The prompt tells the model to quote these facts and never invent numbers. That way "provide the specific next payout date" is answered with a real date (for example 14 Nov 2026 for July–September sales) instead of the model doing calendar arithmetic.
+- **The tone rules from the brief are part of the system prompt.** They cover acknowledging the concern first, owning BookLeaf's mistakes, giving concrete timelines and ending with a next step. The prompt also sets a length target and the sign-off.
+- **Checklist.** The draft comes with a short list for the agent, such as "Trigger Amazon re-sync" or "Verify bank details are linked", so the follow-up work isn't lost.
+- **Prompt-injection hygiene.** Ticket text is wrapped in `<ticket>` tags, and both prompts state that it is untrusted data to classify or answer, never instructions to follow. Internal notes reach the drafter as context, with an instruction never to reveal them.
+- **The priority rubric weighs facts over tone.** "Haven't received royalty for months" with money pending above the threshold scores higher than "Can I update my bio?". An angry message about something routine doesn't become Critical.
+
+### Cost awareness
+
+- **The full knowledge base is never sent.** Classification receives only the category definitions and the priority rubric. Drafts receive the shared base block plus one category section.
+- **Prompt caching.** The static system blocks carry `cache_control` breakpoints: one shared by all drafts, one per category. Repeat calls read them from cache at a fraction of the input price. Only the account facts and the ticket change between calls.
+- **Bounded history.** A draft includes at most the last 6 messages, each capped at 1,500 characters, and the description is capped at 4,000 characters. Token use stays flat even on long threads.
+- **Each draft is generated once.** It's cached in `AiDraft` and reused until the author replies; internal notes don't invalidate it. The client only asks for a draft when the author is waiting on BookLeaf, so no draft is paid for right after the team has replied.
+- **Model tiering and low effort.** The cheapest model that does each job well is used, at `effort: "low"`.
+- **Measured, not guessed.** Every call's input, output and cache-read tokens and latency go to `AiCallLog`. The **Insights** page shows 30-day calls, failures, latency, tokens, estimated cost, and how often admins override the AI.
+
+### Graceful degradation
+
+| Failure | Behaviour |
+|---|---|
+| No API key configured | AI is reported as offline on Insights. Tickets are classified by keyword rules ([rules.ts](server/src/services/ai/rules.ts)), and drafts fall back to a category template with the correct policy timeline |
+| Rate limit, 5xx, timeout | The SDK retries twice with backoff (25-second timeout). The call is then logged as failed and the same fallbacks apply. A circuit breaker skips AI calls for 60 seconds, so users don't each wait out retries during an outage |
+| Unparseable output or refusal | Treated as a failure and the fallback is used |
+| AI slow | Ticket creation is never blocked, because classification runs after the response. In the queue, unclassified tickets show "Classifying…" and sort to the top so nothing urgent is hidden |
+
+The admin can always write a reply manually, and the UI shows which values came from the AI, the keyword rules or an admin (the `AI` / `Rules` / `Admin` tags).
+
+---
+
+## API reference
+
+Base path: `/api`. Request and response bodies are JSON. Every endpoint except `POST /auth/login` and `GET /health` needs `Authorization: Bearer <token>`.
+
+**Errors** always look like this:
+```json
+{ "error": { "code": "VALIDATION_ERROR", "message": "Request validation failed",
+             "details": [{ "field": "subject", "message": "Subject must be at least 5 characters" }] } }
+```
+
+| Status | Code |
+|---|---|
+| 400 | `VALIDATION_ERROR`, `BAD_REQUEST`, `INVALID_JSON` |
+| 401 | `UNAUTHORIZED`, `INVALID_CREDENTIALS` |
+| 403 | `FORBIDDEN` |
+| 404 | `NOT_FOUND` |
+| 409 | `CONFLICT` |
+| 500 | `INTERNAL_ERROR` (details are logged on the server, never sent to the client) |
+
+### Auth
+| Method | Path | Who | Description |
+|---|---|---|---|
+| POST | `/auth/login` | public | Body `{ email, password }` → `{ token, user }`. The token is a JWT valid for 8 hours |
+| GET | `/auth/me` | any | Current user's profile |
+
+### Books
+| Method | Path | Who | Description |
+|---|---|---|---|
+| GET | `/books` | author / admin | Authors: own books. Admins: all books, `?authorId=` to filter. Returns `{ items }` |
+| GET | `/books/:id` | author / admin | One book. An author asking for another author's book gets 404 |
+
+### Tickets
+| Method | Path | Who | Description |
+|---|---|---|---|
+| GET | `/tickets` | author / admin | Authors: own tickets. Admins: the queue (see query parameters below). Returns `{ items, total, page, pageSize }` |
+| POST | `/tickets` | author | Body `{ bookId \| null, subject (5–150), description (20–5000), attachmentName? }` → `201` with the ticket. Classification runs in the background |
+| GET | `/tickets/:id` | author / admin | Ticket with messages. Authors never receive internal notes or triage fields. Supports ETag / `304` for polling |
+| PATCH | `/tickets/:id` | admin | Any of `{ status, category, priority, assigneeId }`. `assigneeId: "me"` assigns to yourself, `null` unassigns. Category and priority set here are marked as admin overrides |
+| POST | `/tickets/:id/messages` | author / admin | Body `{ body, kind?: "REPLY" \| "INTERNAL_NOTE", status?, fromAiDraft? }`. Notes are admin-only. An admin's first reply sets the first-response time and claims an unassigned ticket. An author's reply reopens a resolved ticket; closed tickets return 409 |
+| GET | `/tickets/:id/draft` | admin | AI-drafted reply `{ content, checklist, source: "AI" \| "TEMPLATE", cached, model, ai }`, served from cache while the conversation is unchanged |
+| POST | `/tickets/:id/draft` | admin | Force a fresh draft |
+| POST | `/tickets/:id/classify` | admin | Re-run classification. Admin overrides are kept |
+
+`GET /tickets` query parameters (admin):
+
+| Parameter | Values |
+|---|---|
+| `status` | Comma-separated: `OPEN`, `IN_PROGRESS`, `RESOLVED`, `CLOSED`. Default `OPEN,IN_PROGRESS` |
+| `category` | One category, e.g. `ROYALTY_PAYMENTS` |
+| `priority` | `CRITICAL`, `HIGH`, `MEDIUM` or `LOW` |
+| `assignee` | `me` or `unassigned` |
+| `authorId`, `bookId` | Filter by author or book |
+| `from`, `to` | Dates; filters on when the ticket was created |
+| `q` | Searches the subject |
+| `sort` | `urgency` (default: priority, then oldest first), `oldest`, `newest`, `updated` |
+| `page`, `pageSize` | Page number; page size up to 100 |
+
+### Admin
+| Method | Path | Description |
+|---|---|---|
+| GET | `/admin/team` | Admins that tickets can be assigned to |
+| GET | `/admin/stats` | Queue counts, plus 30-day AI usage, estimated cost, override rates and AI status |
+
+### Example
+```bash
+TOKEN=$(curl -s -X POST localhost:4000/api/auth/login -H 'content-type: application/json' \
+  -d '{"email":"ananya.reddy@email.com","password":"author123"}' | jq -r .token)
+
+curl -s -X POST localhost:4000/api/tickets -H "authorization: Bearer $TOKEN" -H 'content-type: application/json' \
+  -d '{"bookId":"BK005","subject":"Royalty not received","description":"I have sold 67 copies but have never been paid."}'
+```
+
+---
+
+## Known limitations and next steps
+
+- **Attachments are UI-only.** Only the file name is stored. Next: upload to object storage (S3, R2, or Neon/Vercel storage) using presigned URLs.
+- **The session token is stored in `localStorage`.** That's simple, but an httpOnly cookie with CSRF protection would be safer against XSS. There's also no password reset and no login rate limiting yet.
+- **Polling, not push.** It's fine at this scale. At higher volume, a managed realtime channel (Neon Realtime, Pusher, Ably) or SSE on a long-running host would replace it.
+- **The circuit breaker and in-flight guard are per instance.** A shared store such as Redis would coordinate them across serverless instances. A queue such as Vercel Queues would make background classification durable.
+- **The AI has no evaluation suite yet.** The next step is a labelled set of real tickets to measure classification accuracy and draft quality, and to tune prompts against it. The admin override rate on Insights is the first production signal for this.
+- **Knowledge-base retrieval is by category.** That fits a knowledge base this size. A larger one would need embedding-based retrieval of the relevant passages.
+- **No automated test suite.** Behaviour was verified end to end against the API and in a real browser. Next: unit tests for `facts.ts`, `rules.ts` and the access-control rules, plus API integration tests.
