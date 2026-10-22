@@ -16,8 +16,8 @@
     "server": {
       "root": "server",
       "framework": "express",
-      "entrypoint": "src/index.ts",
-      "buildCommand": "npm run build && npm run db:deploy"
+      "entrypoint": "vercel.mjs",
+      "buildCommand": "npm run build:vercel"
     }
   },
   "rewrites": [
