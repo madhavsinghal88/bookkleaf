@@ -2,13 +2,19 @@
   "name": "bookleaf-author-portal",
   "private": true,
   "description": "Author Support & Communication Portal for BookLeaf Publishing",
-  "workspaces": ["server", "client"],
+  "workspaces": [
+    "server",
+    "client"
+  ],
   "scripts": {
     "dev": "npm run dev --workspace server & npm run dev --workspace client",
     "dev:server": "npm run dev --workspace server",
     "dev:client": "npm run dev --workspace client",
     "build": "npm run build --workspace server && npm run build --workspace client",
-    "db:up": "docker compose up -d db"
+    "db:up": "docker compose up -d db",
+    "start": "npm run start --workspace server"
   },
-  "engines": { "node": ">=20" }
+  "engines": {
+    "node": ">=20"
+  }
 }
