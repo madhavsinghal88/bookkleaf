@@ -5,7 +5,50 @@ A web app for BookLeaf Publishing's author support, with two interfaces:
 - **Author Portal**: authors log in, see their books and royalties, raise support queries, and follow replies live.
 - **Support Desk (admin)**: the ops team works an urgency-sorted queue where every ticket is **auto-classified and prioritised by AI**, and each ticket opens with an **AI-drafted reply grounded in the BookLeaf Knowledge Base** for the agent to review, edit and send.
 
-**Live demo:** `https://<your-vercel-domain>` · **Stack:** React + Vite · Express + TypeScript · PostgreSQL (Neon) + Prisma · Claude API · Vercel
+**Live demo:** [https://bookkleaf-ttj1-delta.vercel.app/books](https://bookkleaf-ttj1-delta.vercel.app/books) · **Stack:** React + Vite · Express + TypeScript · PostgreSQL (Neon) + Prisma · OpenAI · Vercel
+
+---
+
+## How to use
+
+Start the app with the steps under [Running locally](#running-locally), then open http://localhost:5173.
+
+### Sign in
+
+On the login page, click a name under the form. **Ananya Reddy** is the fullest author account. One click signs that person in and opens their home screen. You can also type an email and password and press **Submit**.
+
+| Button | Opens |
+|---|---|
+| Ananya Reddy | My Books, with five titles |
+| Sneha Kulkarni | An author who still has a book in production |
+| Kavita Deshmukh | An author with a book in typesetting and a royalty below the payout threshold |
+| Admin: Aisha Verma | The support desk |
+
+### Before you sign in
+
+The login page is also the public publishing site.
+
+- **Packages** describes Standard Free and Bestseller Breakthrough. The paid package has no public price; the team quotes it.
+- **Publish with us**, or the round button at the bottom right, opens the publishing advisor.
+- **About** is the “Get in touch” form (name, email, country code, phone). Sending it stores a new sales chat and opens the advisor with that conversation.
+- In either chat, **New** starts a blank conversation and **Saved** reopens an earlier one. A reply in a saved chat stays in that chat.
+
+### As an author
+
+- **My Books** shows copies sold and royalty earned, paid, and pending, then one card per book. A book still in production shows its stage. A live book shows price, sales, and payouts. Balances under ₹1,000 roll to the next quarter.
+- **Ask a question** or **New Query** raises a ticket about a book. The team sees it on the support desk, already classified.
+- **My Tickets** lists your queries. Open one to read replies. The page refreshes while it is open.
+- The round **Help** button is the author assistant. It starts a new chat. **Saved** keeps earlier chats, named from the first question. Ask it about royalties, production, or where a book is listed. When the team needs to change something, use **New Query**.
+- Your name in the header opens **Profile**, **English** / **हिन्दी**, and **Log out**. Profile edits your name, and for an author also phone and city. Email stays the sign-in address. The language choice is saved on the account and switches the portal, including My Books and the menus.
+
+### As an admin
+
+Sign in with **Admin: Aisha Verma**.
+
+- **Ticket Queue** lists open work, most urgent first. Filter by status, priority, category, assignee, date, or subject.
+- Open a ticket to see the classification, an AI draft, and a checklist. Edit the draft and send it, or write your own reply. Internal notes stay off the author’s view. You can change status, category, priority, and assignee. Overrides are kept if classification runs again.
+- **Insights** shows queue counts and 30-day AI usage, cost, and how often an admin changed the AI’s category or priority.
+- Admins can open **Profile** to change their name and language. They do not get the author Help button.
 
 ---
 
@@ -21,12 +64,12 @@ Useful authors for edge cases:
 
 | Author | Why |
 |---|---|
-| `ananya.reddy@email.com` | Never paid; ₹2,546 pending (AI flags it as possibly overdue) |
+| `ananya.reddy@email.com` | Five books. *Between Two Temples* has never been paid (₹2,546 pending). *Bangles of the Musi* is under the ₹1,000 payout threshold. *The Deccan Hour* is in proofreading |
 | `sneha.kulkarni@email.com` | Has a book still in production (Cover Design) |
 | `kavita.deshmukh@email.com` | Book in Typesetting, plus ₹850 pending (below the ₹1,000 payout threshold) |
 | `meera.nair@email.com` | Fully paid up; has a resolved ticket |
 
-The login page has one-click buttons for these accounts. The database is seeded with the provided dataset (10 authors, 18 books) and four sample tickets.
+The names under the login form sign those accounts in with one click. The database is seeded with the provided dataset (10 authors, 22 books) and four sample tickets. Ananya Reddy's account has five books.
 
 ---
 
@@ -51,16 +94,17 @@ Open http://localhost:5173. Vite proxies `/api` to the Express server.
 | `DATABASE_URL` | yes | Postgres URL (Neon *pooled* endpoint) used by the app |
 | `DIRECT_URL` | for migrations | Neon *direct* endpoint, used by Prisma Migrate |
 | `JWT_SECRET` | yes | ≥32 random characters (`openssl rand -hex 32`) |
-| `ANTHROPIC_API_KEY` | no | Enables AI. Without it the app runs with rule-based classification and template drafts |
-| `AI_CLASSIFY_MODEL` | no | Default `claude-haiku-5-5` |
-| `AI_DRAFT_MODEL` | no | Default `claude-opus-5-5` |
+| `OPENAI_API_KEY` | no | Enables AI. Without it the app runs with rule-based classification and template drafts |
+| `AI_CLASSIFY_MODEL` | no | Default `gpt-4o-mini` |
+| `AI_CHAT_MODEL` | no | Default `gpt-4o-mini` |
+| `AI_DRAFT_MODEL` | no | Default `gpt-4o-mini` |
 | `CLIENT_ORIGIN` | no | CORS origin for local development, default `http://localhost:5173` |
 
 All configuration is validated at startup ([server/src/config/env.ts](server/src/config/env.ts)), so a missing secret fails fast.
 
 ### Deployment
 
-The app is deployed on Vercel as one project with two [services](https://vercel.com/docs/services) ([vercel.json](vercel.json)): `/api/*` routes to the Express service and everything else to the Vite client, all on one domain. The server build applies Prisma migrations to Neon. Set the variables above in the Vercel project settings; nothing secret is committed.
+The app is deployed on Vercel at [bookkleaf-ttj1-delta.vercel.app](https://bookkleaf-ttj1-delta.vercel.app/books) as one project with two [services](https://vercel.com/docs/services) ([vercel.json](vercel.json)): `/api/*` routes to the Express service and everything else to the Vite client, all on one domain. The server build applies Prisma migrations to Neon. Set the variables above in the Vercel project settings; nothing secret is committed.
 
 ---
 
@@ -69,7 +113,7 @@ The app is deployed on Vercel as one project with two [services](https://vercel.
 ```
 client/  React SPA ──fetch /api──►  server/  Express REST API ──Prisma──► Neon Postgres
                                        │
-                                       └──► Claude API (classification, reply drafts)
+                                       └──► OpenAI (classification, drafts, chat)
 ```
 
 ```
@@ -112,14 +156,11 @@ client/src/
 
 | Feature | When | Model | Output |
 |---|---|---|---|
-| Classification | Each new ticket, in the background | `claude-haiku-5-5` (low effort) | `{ category, priority, summary }` via structured outputs (Zod schema) |
-| Reply draft | Admin opens a ticket that's waiting on BookLeaf | `claude-opus-5-5` (low effort) | `{ reply, checklist }` via structured outputs |
+| Classification | Each new ticket, in the background | `gpt-4o-mini` | `{ category, priority, summary }` via structured outputs (Zod schema) |
+| Reply draft | Admin opens a ticket that's waiting on BookLeaf | `gpt-4o-mini` | `{ reply, checklist }` via structured outputs |
+| Author chat and sales chat | Each message | `gpt-4o-mini` | `{ reply }` via structured outputs |
 
-**Why these models:**
-- **Classification** is a short, high-volume task with a fixed label set. Haiku 5.5 handles it at about $0.0002 per ticket, and the brief recommends Haiku for this use.
-- **Drafts** are customer-facing writing that must follow the tone guide and use exact figures, so quality matters most there. Opus 5.5 at low effort gives strong writing for a modest cost, and each draft is generated once per conversation state.
-
-Both models are environment variables, so switching them (for example drafts to `claude-sonnet-5-5`) needs no code change.
+**Why this model:** classification, chat, and drafts are all short tasks with a fixed shape. `gpt-4o-mini` follows the tone guide and quotes the figures the server already computed, at roughly a fraction of a cent per call. Drafts are still generated once per conversation state. Set `AI_DRAFT_MODEL=gpt-4o` if a ticket needs a stronger writer; no code change is required.
 
 ### Prompt design
 
@@ -141,10 +182,10 @@ Both models are environment variables, so switching them (for example drafts to 
 ### Cost awareness
 
 - **The full knowledge base is never sent.** Classification receives only the category definitions and the priority rubric. Drafts receive the shared base block plus one category section.
-- **Prompt caching.** The static system blocks carry `cache_control` breakpoints: one shared by all drafts, one per category. Repeat calls read them from cache at a fraction of the input price. Only the account facts and the ticket change between calls.
+- **Prompt caching.** The static system text (persona, then the one relevant policy) is the prefix of every request. OpenAI caches that prefix automatically on repeat calls, so only the account facts and the ticket are new input.
 - **Bounded history.** A draft includes at most the last 6 messages, each capped at 1,500 characters, and the description is capped at 4,000 characters. Token use stays flat even on long threads.
 - **Each draft is generated once.** It's cached in `AiDraft` and reused until the author replies; internal notes don't invalidate it. The client only asks for a draft when the author is waiting on BookLeaf, so no draft is paid for right after the team has replied.
-- **Model tiering and low effort.** The cheapest model that does each job well is used, at `effort: "low"`.
+- **One inexpensive model.** `gpt-4o-mini` does classification, chat, and drafts. A stronger model is an environment variable away.
 - **Measured, not guessed.** Every call's input, output and cache-read tokens and latency go to `AiCallLog`. The **Insights** page shows 30-day calls, failures, latency, tokens, estimated cost, and how often admins override the AI.
 
 ### Graceful degradation
@@ -162,7 +203,7 @@ The admin can always write a reply manually, and the UI shows which values came 
 
 ## API reference
 
-Base path: `/api`. Request and response bodies are JSON. Every endpoint except `POST /auth/login` and `GET /health` needs `Authorization: Bearer <token>`.
+Base path: `/api`. Request and response bodies are JSON. Every endpoint except `POST /auth/login`, `GET /health`, and the public sales chat needs `Authorization: Bearer <token>`.
 
 **Errors** always look like this:
 ```json
@@ -183,7 +224,16 @@ Base path: `/api`. Request and response bodies are JSON. Every endpoint except `
 | Method | Path | Who | Description |
 |---|---|---|---|
 | POST | `/auth/login` | public | Body `{ email, password }` → `{ token, user }`. The token is a JWT valid for 8 hours |
-| GET | `/auth/me` | any | Current user's profile |
+| GET | `/auth/me` | any | Current user's profile, including language and, for an author, phone, city, and joined date |
+| PATCH | `/auth/me` | any | Body `{ name, language: "en" \| "hi", phone?, city? }` → `{ token, user, profile }`. A new token is issued because the name is inside the JWT. Phone and city apply only to authors |
+
+### Chat
+| Method | Path | Who | Description |
+|---|---|---|---|
+| GET | `/chat/sales?sessionId=&threadId=` | public | Saved sales chats for that browser session. Omit `threadId` to start a new chat and only list saved ones. `sessionId` is a UUID the browser keeps |
+| POST | `/chat/sales` | public | Body `{ sessionId, message, threadId? }` → `{ threadId, messages }`. With no `threadId`, the message starts and stores a new chat |
+| GET | `/chat/support?threadId=` | author | Same shape for the signed-in author. Omit `threadId` for a new chat plus the saved list |
+| POST | `/chat/support` | author | Body `{ message, threadId? }` → `{ threadId, messages }` |
 
 ### Books
 | Method | Path | Who | Description |

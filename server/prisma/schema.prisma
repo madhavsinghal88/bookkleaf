@@ -213,21 +213,22 @@ model AiCallLog {
   @@index([createdAt])
 }
 
-// One ongoing conversation per author (support) or per browser session (sales).
-// Sales threads have no user; support threads have no session id.
+// Each conversation is its own thread. Support threads belong to an author.
+// Sales threads belong to a browser session id, and one browser can keep many.
 model ChatThread {
   id        String   @id @default(cuid())
   kind      ChatKind
   userId    String?
   sessionId String?
+  title     String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   user     User?         @relation(fields: [userId], references: [id], onDelete: Cascade)
   messages ChatMessage[]
 
-  @@unique([userId, kind])
-  @@unique([sessionId, kind])
+  @@index([userId, kind, updatedAt])
+  @@index([sessionId, kind, updatedAt])
   @@index([updatedAt])
 }
 

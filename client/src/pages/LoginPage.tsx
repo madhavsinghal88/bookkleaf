@@ -2,7 +2,7 @@ import { useRef, useState, type FormEvent } from "react";
 import { Navigate, useNavigate } from "react-router";
 import { useAuth } from "../auth/AuthContext";
 import { api, ApiError } from "../api/client";
-import { ChatWidget } from "../components/ChatWidget";
+import { ChatWidget, OPEN_SALES_THREAD_KEY } from "../components/ChatWidget";
 
 const SALES_SESSION_KEY = "bookleaf.salesSession";
 const COUNTRY_CODES = [
@@ -59,18 +59,24 @@ export function LoginPage() {
 
   if (user) return <Navigate to={user.role === "ADMIN" ? "/admin/tickets" : "/books"} replace />;
 
-  async function onSubmit(e: FormEvent) {
-    e.preventDefault();
+  async function signInAs(nextEmail: string, nextPassword: string) {
+    setEmail(nextEmail);
+    setPassword(nextPassword);
     setError(null);
     setSubmitting(true);
     try {
-      const signedIn = await login(email, password);
+      const signedIn = await login(nextEmail, nextPassword);
       navigate(signedIn.role === "ADMIN" ? "/admin/tickets" : "/books", { replace: true });
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Login failed");
     } finally {
       setSubmitting(false);
     }
+  }
+
+  function onSubmit(event: FormEvent) {
+    event.preventDefault();
+    void signInAs(email, password);
   }
 
   return (
@@ -149,10 +155,8 @@ export function LoginPage() {
               key={account.email}
               type="button"
               className="btn btn-ghost btn-sm demo-btn"
-              onClick={() => {
-                setEmail(account.email);
-                setPassword(account.password);
-              }}
+              disabled={submitting}
+              onClick={() => void signInAs(account.email, account.password)}
             >
               {account.label}
             </button>
@@ -184,10 +188,11 @@ export function LoginPage() {
             setLeadSending(true);
             const dial = COUNTRY_CODES.find((item) => item.code === leadCode)?.dial ?? "";
             try {
-              await api.post("/chat/sales", {
+              const saved = await api.post<{ threadId: string }>("/chat/sales", {
                 sessionId: salesSessionId(),
                 message: `I'd like to publish with BookLeaf. Name: ${leadName.trim()}. Email: ${leadEmail.trim()}. Phone: ${dial} ${leadPhone.trim()}.`,
               });
+              sessionStorage.setItem(OPEN_SALES_THREAD_KEY, saved.threadId);
               setLeadSent(true);
               setChatRefresh((value) => value + 1);
             } catch (err) {

@@ -30,16 +30,45 @@ function present(message: ChatMessage) {
   };
 }
 
+function presentThread(thread: { id: string; title: string | null; updatedAt: Date }) {
+  return {
+    id: thread.id,
+    title: thread.title?.trim() || "Chat",
+    updatedAt: thread.updatedAt.toISOString(),
+  };
+}
+
 function turns(messages: { role: ChatRole; content: string }[]): ChatTurn[] {
   return messages.map((message) => ({ role: message.role, content: message.content }));
 }
 
-export async function listSales(sessionId: string) {
-  const thread = await prisma.chatThread.findUnique({
-    where: { sessionId_kind: { sessionId, kind: "SALES" } },
+async function salesThreads(sessionId: string) {
+  return prisma.chatThread.findMany({
+    where: { sessionId, kind: "SALES", messages: { some: {} } },
+    orderBy: { updatedAt: "desc" },
+    take: 20,
+    select: { id: true, title: true, updatedAt: true },
+  });
+}
+
+async function supportThreads(userId: string) {
+  return prisma.chatThread.findMany({
+    where: { userId, kind: "SUPPORT", messages: { some: {} } },
+    orderBy: { updatedAt: "desc" },
+    take: 20,
+    select: { id: true, title: true, updatedAt: true },
+  });
+}
+
+export async function listSales(sessionId: string, threadId?: string) {
+  const sessions = (await salesThreads(sessionId)).map(presentThread);
+  if (!threadId) return { threadId: null, sessions, messages: [] };
+  const thread = await prisma.chatThread.findFirst({
+    where: { id: threadId, sessionId, kind: "SALES" },
     include: { messages: { orderBy: [{ createdAt: "asc" }, { id: "asc" }] } },
   });
-  return { messages: thread?.messages.map(present) ?? [] };
+  if (!thread) throw new AppError(404, "NOT_FOUND", "That chat was not found.");
+  return { threadId: thread.id, sessions, messages: thread.messages.map(present) };
 }
 
 async function recentTurns(threadId: string): Promise<ChatTurn[]> {
@@ -64,13 +93,9 @@ function pair(message: string, reply: { reply: string; source: "AI" | "RULES" })
   ];
 }
 
-export async function sendSales(sessionId: string, message: string) {
+export async function sendSales(sessionId: string, message: string, threadId?: string) {
   rateLimit(`sales:${sessionId}`);
-  const thread = await prisma.chatThread.upsert({
-    where: { sessionId_kind: { sessionId, kind: "SALES" } },
-    create: { kind: "SALES", sessionId },
-    update: {},
-  });
+  const thread = await salesThread(sessionId, message, threadId);
   const reply = await salesChatReply(await recentTurns(thread.id), message);
   const saved = await prisma.chatThread.update({
     where: { id: thread.id },
@@ -79,21 +104,38 @@ export async function sendSales(sessionId: string, message: string) {
     },
     include: { messages: { orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: 2 } },
   });
-  return { messages: saved.messages.reverse().map(present) };
+  return { threadId: thread.id, messages: saved.messages.reverse().map(present) };
 }
 
-export async function listSupport(user: AuthUser) {
+async function salesThread(sessionId: string, message: string, threadId?: string) {
+  if (!threadId) {
+    return prisma.chatThread.create({
+      data: { kind: "SALES", sessionId, title: message.slice(0, 80) },
+    });
+  }
+  const thread = await prisma.chatThread.findFirst({ where: { id: threadId, sessionId, kind: "SALES" } });
+  if (!thread) throw new AppError(404, "NOT_FOUND", "That chat was not found.");
+  if (!thread.title) {
+    return prisma.chatThread.update({ where: { id: thread.id }, data: { title: message.slice(0, 80) } });
+  }
+  return thread;
+}
+
+export async function listSupport(user: AuthUser, threadId?: string) {
   if (user.role !== "AUTHOR" || !user.authorId) {
     throw new AppError(403, "FORBIDDEN", "The author assistant is only available to authors.");
   }
-  const thread = await prisma.chatThread.findUnique({
-    where: { userId_kind: { userId: user.id, kind: "SUPPORT" } },
+  const sessions = (await supportThreads(user.id)).map(presentThread);
+  if (!threadId) return { threadId: null, sessions, messages: [] };
+  const thread = await prisma.chatThread.findFirst({
+    where: { id: threadId, userId: user.id, kind: "SUPPORT" },
     include: { messages: { orderBy: [{ createdAt: "asc" }, { id: "asc" }] } },
   });
-  return { messages: thread?.messages.map(present) ?? [] };
+  if (!thread) throw new AppError(404, "NOT_FOUND", "That chat was not found.");
+  return { threadId: thread.id, sessions, messages: thread.messages.map(present) };
 }
 
-export async function sendSupport(user: AuthUser, message: string) {
+export async function sendSupport(user: AuthUser, message: string, threadId?: string) {
   if (user.role !== "AUTHOR" || !user.authorId) {
     throw new AppError(403, "FORBIDDEN", "The author assistant is only available to authors.");
   }
@@ -104,11 +146,7 @@ export async function sendSupport(user: AuthUser, message: string) {
   });
   if (!author) throw new AppError(404, "NOT_FOUND", "Author not found");
 
-  const thread = await prisma.chatThread.upsert({
-    where: { userId_kind: { userId: user.id, kind: "SUPPORT" } },
-    create: { kind: "SUPPORT", userId: user.id },
-    update: {},
-  });
+  const thread = await supportThread(user.id, message, threadId);
   const reply = await supportChatReply({
     history: await recentTurns(thread.id),
     message,
@@ -122,5 +160,19 @@ export async function sendSupport(user: AuthUser, message: string) {
     },
     include: { messages: { orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: 2 } },
   });
-  return { messages: saved.messages.reverse().map(present) };
+  return { threadId: thread.id, messages: saved.messages.reverse().map(present) };
+}
+
+async function supportThread(userId: string, message: string, threadId?: string) {
+  if (!threadId) {
+    return prisma.chatThread.create({
+      data: { kind: "SUPPORT", userId, title: message.slice(0, 80) },
+    });
+  }
+  const thread = await prisma.chatThread.findFirst({ where: { id: threadId, userId, kind: "SUPPORT" } });
+  if (!thread) throw new AppError(404, "NOT_FOUND", "That chat was not found.");
+  if (!thread.title) {
+    return prisma.chatThread.update({ where: { id: thread.id }, data: { title: message.slice(0, 80) } });
+  }
+  return thread;
 }
