@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router";
 import { AuthProvider, useAuth } from "./auth/AuthContext";
+import { LanguageProvider } from "./i18n";
 import type { Role } from "./api/types";
 import { Layout } from "./components/Layout";
 import { Spinner } from "./components/ui";
@@ -12,25 +13,34 @@ import { AuthorTicketPage } from "./pages/author/AuthorTicketPage";
 import { QueuePage } from "./pages/admin/QueuePage";
 import { AdminTicketPage } from "./pages/admin/AdminTicketPage";
 import { InsightsPage } from "./pages/admin/InsightsPage";
+import { ProfilePage } from "./pages/ProfilePage";
 
 // UI-level guard for convenience only; the API enforces access on every request.
 function RequireRole({ role, children }: { role: Role; children: ReactNode }) {
   const { user, loading } = useAuth();
-  if (loading) return <Spinner />;
+  if (loading) return <Spinner full />;
   if (!user) return <Navigate to="/login" replace />;
   if (user.role !== role) return <Navigate to={user.role === "ADMIN" ? "/admin/tickets" : "/books"} replace />;
   return children;
 }
 
+function RequireAuth({ children }: { children: ReactNode }) {
+  const { user, loading } = useAuth();
+  if (loading) return <Spinner full />;
+  if (!user) return <Navigate to="/login" replace />;
+  return children;
+}
+
 function Home() {
   const { user, loading } = useAuth();
-  if (loading) return <Spinner />;
+  if (loading) return <Spinner full />;
   if (!user) return <Navigate to="/login" replace />;
   return <Navigate to={user.role === "ADMIN" ? "/admin/tickets" : "/books"} replace />;
 }
 
 export default function App() {
   return (
+    <LanguageProvider>
     <AuthProvider>
       <BrowserRouter>
         <Routes>
@@ -62,9 +72,20 @@ export default function App() {
             <Route path="/admin/insights" element={<InsightsPage />} />
           </Route>
 
+          <Route
+            element={
+              <RequireAuth>
+                <Layout />
+              </RequireAuth>
+            }
+          >
+            <Route path="/profile" element={<ProfilePage />} />
+          </Route>
+
           <Route path="*" element={<Home />} />
         </Routes>
       </BrowserRouter>
     </AuthProvider>
+    </LanguageProvider>
   );
 }

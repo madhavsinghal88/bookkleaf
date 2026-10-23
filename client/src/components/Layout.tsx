@@ -1,21 +1,49 @@
-import { NavLink, Outlet } from "react-router";
+import { useEffect, useRef, useState } from "react";
+import { NavLink, Outlet, useNavigate } from "react-router";
+import { api, tokenStore } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
+import { useI18n, type Language } from "../i18n";
 import { ChatWidget } from "./ChatWidget";
-
-const AUTHOR_LINKS = [
-  { to: "/books", label: "My Books" },
-  { to: "/tickets", label: "My Tickets" },
-  { to: "/tickets/new", label: "New Query" },
-];
-
-const ADMIN_LINKS = [
-  { to: "/admin/tickets", label: "Ticket Queue" },
-  { to: "/admin/insights", label: "Insights" },
-];
 
 export function Layout() {
   const { user, logout } = useAuth();
-  const links = user?.role === "ADMIN" ? ADMIN_LINKS : AUTHOR_LINKS;
+  const { t, language, setLanguage } = useI18n();
+  const navigate = useNavigate();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  const links =
+    user?.role === "ADMIN"
+      ? [
+          { to: "/admin/tickets", label: t("ticketQueue") },
+          { to: "/admin/insights", label: t("insights") },
+        ]
+      : [
+          { to: "/books", label: t("myBooks") },
+          { to: "/tickets", label: t("myTickets") },
+          { to: "/tickets/new", label: t("newQuery") },
+        ];
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    function onPointer(event: MouseEvent) {
+      if (!menuRef.current?.contains(event.target as Node)) setMenuOpen(false);
+    }
+    window.addEventListener("mousedown", onPointer);
+    return () => window.removeEventListener("mousedown", onPointer);
+  }, [menuOpen]);
+
+  function chooseLanguage(next: Language) {
+    setLanguage(next);
+    setMenuOpen(false);
+    if (!user) return;
+    api
+      .patch<{ token: string }>("/auth/me", { name: user.name, language: next })
+      .then((saved) => tokenStore.set(saved.token))
+      .catch(() => {
+        // The choice still applies in this browser even if the save doesn't.
+      });
+  }
 
   return (
     <div className="app">
@@ -34,18 +62,41 @@ export function Layout() {
               </NavLink>
             ))}
           </nav>
-          <div className="topbar-user">
-            <span className="muted">{user?.name}</span>
-            <button className="btn btn-ghost btn-sm" onClick={logout}>
-              Log out
+          <div className="topbar-user" ref={menuRef}>
+            <button type="button" className="account-button" onClick={() => setMenuOpen((open) => !open)} aria-expanded={menuOpen}>
+              {user?.name}
             </button>
+            {menuOpen && (
+              <div className="account-menu" role="menu">
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    navigate("/profile");
+                  }}
+                >
+                  {t("profile")}
+                </button>
+                <p className="account-label">{t("language")}</p>
+                <button type="button" role="menuitem" className={language === "en" ? "active" : undefined} onClick={() => chooseLanguage("en")}>
+                  {t("english")}
+                </button>
+                <button type="button" role="menuitem" className={language === "hi" ? "active" : undefined} onClick={() => chooseLanguage("hi")}>
+                  {t("hindi")}
+                </button>
+                <button type="button" role="menuitem" onClick={logout}>
+                  {t("logout")}
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </header>
       <main className="container">
         <Outlet />
       </main>
-      <footer className="site-foot">BookLeaf Publishing · {user?.role === "ADMIN" ? "Support Desk" : "Author Portal"}</footer>
+      <footer className="site-foot">BookLeaf Publishing · {user?.role === "ADMIN" ? t("supportDesk") : t("authorPortal")}</footer>
       {user?.role === "AUTHOR" && <ChatWidget kind="support" />}
     </div>
   );

@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import type { ClassificationSource, TicketPriority, TicketStatus } from "../api/types";
+import { useI18n } from "../i18n";
 import { PRIORITY_LABELS, STATUS_LABELS } from "../lib/format";
 
 export function StatusBadge({ status }: { status: TicketStatus }) {
@@ -45,6 +46,12 @@ export function ErrorBanner({ error }: { error: Error | null }) {
   );
 }
 
-export function Spinner({ label = "Loading…" }: { label?: string }) {
-  return <p className="muted">{label}</p>;
+export function Spinner({ label, full = false }: { label?: string; full?: boolean }) {
+  const { t } = useI18n();
+  return (
+    <div className={full ? "loader loader-full" : "loader"} role="status" aria-live="polite">
+      <span className="loader-ring" aria-hidden="true" />
+      <span className="loader-label">{label ?? t("loading")}</span>
+    </div>
+  );
 }

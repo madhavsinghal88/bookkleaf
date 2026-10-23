@@ -76,6 +76,8 @@ model User {
   passwordHash String
   name         String
   role         Role
+  // Portal language. "en" or "hi". Kept on the login so it follows the person, not one browser.
+  language     String   @default("en")
   createdAt    DateTime @default(now())
 
   author          Author?

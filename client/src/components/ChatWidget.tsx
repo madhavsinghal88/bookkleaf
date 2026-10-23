@@ -14,7 +14,7 @@ const COPY = {
   },
   support: {
     title: "Author assistant",
-    launcher: "Ask BookLeaf",
+    launcher: "Help",
     intro: "Ask about your books, royalties, or production status. Use New Query when the team needs to change something.",
     suggestions: ["When is my next royalty payout?", "What's the status of my books?", "Where are my books listed?"],
   },
@@ -33,11 +33,15 @@ export function ChatWidget({
   startOpen = false,
   onReady,
   hideLauncher = false,
+  refreshKey = 0,
+  onOpenChange,
 }: {
   kind: "sales" | "support";
   startOpen?: boolean;
   onReady?: (open: () => void) => void;
   hideLauncher?: boolean;
+  refreshKey?: number;
+  onOpenChange?: (open: boolean) => void;
 }) {
   const copy = COPY[kind];
   const [open, setOpen] = useState(startOpen);
@@ -50,10 +54,20 @@ export function ChatWidget({
   const sessionId = useRef<string | null>(null);
   const onReadyRef = useRef(onReady);
   onReadyRef.current = onReady;
+  const onOpenChangeRef = useRef(onOpenChange);
+  onOpenChangeRef.current = onOpenChange;
 
   useEffect(() => {
     onReadyRef.current?.(() => setOpen(true));
   }, []);
+
+  useEffect(() => {
+    onOpenChangeRef.current?.(open);
+  }, [open]);
+
+  useEffect(() => {
+    if (refreshKey > 0) setOpen(true);
+  }, [refreshKey]);
 
   useEffect(() => {
     if (!open) return;
@@ -78,7 +92,7 @@ export function ChatWidget({
     return () => {
       cancelled = true;
     };
-  }, [open, kind]);
+  }, [open, kind, refreshKey]);
 
   useEffect(() => {
     logRef.current?.scrollTo({ top: logRef.current.scrollHeight });
@@ -191,11 +205,21 @@ export function ChatWidget({
           </form>
         </section>
       )}
-      {!hideLauncher && !(startOpen && open) && (
-        <button type="button" className="btn btn-primary chat-launcher" onClick={() => setOpen((value) => !value)}>
-          {open ? "Hide chat" : copy.launcher}
-        </button>
-      )}
+      {!hideLauncher && !(startOpen && open) &&
+        (kind === "support" ? (
+          <button
+            type="button"
+            className="chat-launcher-help"
+            aria-label={open ? "Hide help" : "Help"}
+            onClick={() => setOpen((value) => !value)}
+          >
+            {open ? "×" : "?"}
+          </button>
+        ) : (
+          <button type="button" className="btn btn-primary chat-launcher" onClick={() => setOpen((value) => !value)}>
+            {open ? "Hide chat" : copy.launcher}
+          </button>
+        ))}
     </div>
   );
 }

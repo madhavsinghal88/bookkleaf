@@ -3,6 +3,7 @@ import { Link } from "react-router";
 import { api } from "../../api/client";
 import type { Book } from "../../api/types";
 import { EmptyState, ErrorBanner, Spinner } from "../../components/ui";
+import { useI18n } from "../../i18n";
 import { date, inr, isPublished } from "../../lib/format";
 
 const PRODUCTION_STAGES = [
@@ -19,6 +20,7 @@ const PRODUCTION_STAGES = [
 const PAYOUT_THRESHOLD = 1000;
 
 export function MyBooksPage() {
+  const { t } = useI18n();
   const [books, setBooks] = useState<Book[] | null>(null);
   const [error, setError] = useState<Error | null>(null);
 
@@ -32,7 +34,7 @@ export function MyBooksPage() {
   if (error) return <ErrorBanner error={error} />;
   if (!books) return <Spinner />;
   if (books.length === 0) {
-    return <EmptyState title="No books yet">Once your manuscript is received, it will appear here.</EmptyState>;
+    return <EmptyState title={t("noBooks")}>{t("noBooksBody")}</EmptyState>;
   }
 
   const totals = books.reduce(
@@ -48,22 +50,19 @@ export function MyBooksPage() {
   return (
     <>
       <div className="page-header">
-        <h1>My Books</h1>
+        <h1>{t("myBooks")}</h1>
         <Link to="/tickets/new" className="btn btn-primary">
-          Ask a question
+          {t("askQuestion")}
         </Link>
       </div>
 
       <div className="stat-row">
-        <Stat label="Copies sold" value={totals.sold.toLocaleString("en-IN")} />
-        <Stat label="Royalty earned" value={inr(totals.earned)} />
-        <Stat label="Royalty paid" value={inr(totals.paid)} />
-        <Stat label="Royalty pending" value={inr(totals.pending)} />
+        <Stat label={t("copiesSold")} value={totals.sold.toLocaleString("en-IN")} />
+        <Stat label={t("royaltyEarned")} value={inr(totals.earned)} />
+        <Stat label={t("royaltyPaid")} value={inr(totals.paid)} />
+        <Stat label={t("royaltyPending")} value={inr(totals.pending)} />
       </div>
-      <p className="muted small">
-        Royalties are calculated quarterly and paid by bank transfer within 45 days of each quarter ending. Balances under{" "}
-        {inr(PAYOUT_THRESHOLD)} roll over to the next quarter.
-      </p>
+      <p className="muted small">{t("royaltyPolicy")}</p>
 
       <div className="book-list">
         {books.map((b) => (isPublished(b.status) ? <PublishedBook key={b.id} book={b} /> : <InProductionBook key={b.id} book={b} />))}
@@ -82,6 +81,7 @@ function Stat({ label, value }: { label: string; value: string }) {
 }
 
 function PublishedBook({ book: b }: { book: Book }) {
+  const { t } = useI18n();
   return (
     <article className="card book">
       <header className="book-header">
@@ -91,33 +91,33 @@ function PublishedBook({ book: b }: { book: Book }) {
             {b.genre} · ISBN {b.isbn}
           </p>
         </div>
-        <span className="badge status-resolved">{b.status}</span>
+        <span className="badge status-resolved">{t("publishedLive")}</span>
       </header>
       <dl className="book-grid">
-        <Field label="Published" value={date(b.publicationDate)} />
-        <Field label="MRP" value={inr(b.mrp)} />
-        <Field label="Copies sold" value={b.totalCopiesSold.toLocaleString("en-IN")} />
-        <Field label="Royalty / copy" value={inr(b.authorRoyaltyPerCopy)} />
-        <Field label="Total earned" value={inr(b.totalRoyaltyEarned)} />
-        <Field label="Paid" value={inr(b.royaltyPaid)} />
-        <Field label="Pending" value={inr(b.royaltyPending)} highlight={b.royaltyPending > 0} />
-        <Field label="Last payout" value={b.lastRoyaltyPayoutAt ? date(b.lastRoyaltyPayoutAt) : "No payouts yet"} />
+        <Field label={t("published")} value={date(b.publicationDate)} />
+        <Field label={t("mrp")} value={inr(b.mrp)} />
+        <Field label={t("copiesSold")} value={b.totalCopiesSold.toLocaleString("en-IN")} />
+        <Field label={t("royaltyPerCopy")} value={inr(b.authorRoyaltyPerCopy)} />
+        <Field label={t("totalEarned")} value={inr(b.totalRoyaltyEarned)} />
+        <Field label={t("paid")} value={inr(b.royaltyPaid)} />
+        <Field label={t("pending")} value={inr(b.royaltyPending)} highlight={b.royaltyPending > 0} />
+        <Field label={t("lastPayout")} value={b.lastRoyaltyPayoutAt ? date(b.lastRoyaltyPayoutAt) : t("noPayouts")} />
       </dl>
       {b.royaltyPending > 0 && b.royaltyPending < PAYOUT_THRESHOLD && (
-        <p className="note">
-          Your pending royalty of {inr(b.royaltyPending)} is below the {inr(PAYOUT_THRESHOLD)} payout threshold, so it will roll
-          over and be paid once it crosses the threshold.
-        </p>
+        <p className="note">{t("belowThreshold", { amount: inr(b.royaltyPending), threshold: inr(PAYOUT_THRESHOLD) })}</p>
       )}
-      {b.totalCopiesSold === 0 && <p className="note">No sales recorded yet. Royalties will appear here after your first sales.</p>}
+      {b.totalCopiesSold === 0 && <p className="note">{t("noSales")}</p>}
       <footer className="book-footer muted small">
-        Available on {b.availableOn.join(", ") || "no platforms yet"} · Printed by {b.printPartner ?? "—"}
+        {t("availableOn", { platforms: b.availableOn.join(", ") || t("noPlatforms") })}
+        {" · "}
+        {t("printedBy", { partner: b.printPartner ?? "—" })}
       </footer>
     </article>
   );
 }
 
 function InProductionBook({ book: b }: { book: Book }) {
+  const { t, stage: stageLabel } = useI18n();
   // Status looks like "In Production - Cover Design".
   const stage = b.status.split(" - ")[1] ?? b.status;
   const currentIndex = PRODUCTION_STAGES.indexOf(stage);
@@ -131,18 +131,16 @@ function InProductionBook({ book: b }: { book: Book }) {
             {b.genre} · ISBN {b.isbn}
           </p>
         </div>
-        <span className="badge status-in_progress">In production</span>
+        <span className="badge status-in_progress">{t("inProduction")}</span>
       </header>
       <ol className="stages" aria-label="Production progress">
         {PRODUCTION_STAGES.map((s, i) => (
           <li key={s} className={i < currentIndex ? "done" : i === currentIndex ? "current" : undefined}>
-            {s}
+            {stageLabel(s)}
           </li>
         ))}
       </ol>
-      <p className="muted small">
-        Currently in <strong>{stage}</strong>. Price, sales and royalties will appear once the book is published.
-      </p>
+      <p className="muted small">{t("currentlyIn", { stage: stageLabel(stage) })}</p>
     </article>
   );
 }

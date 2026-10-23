@@ -1,8 +1,24 @@
 import { useRef, useState, type FormEvent } from "react";
 import { Navigate, useNavigate } from "react-router";
 import { useAuth } from "../auth/AuthContext";
-import { ApiError } from "../api/client";
+import { api, ApiError } from "../api/client";
 import { ChatWidget } from "../components/ChatWidget";
+
+const SALES_SESSION_KEY = "bookleaf.salesSession";
+const COUNTRY_CODES = [
+  { code: "IN", dial: "+91" },
+  { code: "US", dial: "+1" },
+  { code: "GB", dial: "+44" },
+  { code: "AE", dial: "+971" },
+];
+
+function salesSessionId() {
+  const existing = localStorage.getItem(SALES_SESSION_KEY);
+  if (existing) return existing;
+  const created = crypto.randomUUID();
+  localStorage.setItem(SALES_SESSION_KEY, created);
+  return created;
+}
 
 // Demo accounts from the seeded dataset, so reviewers can log in in one click.
 const DEMO_ACCOUNTS = [
@@ -31,6 +47,15 @@ export function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [leadName, setLeadName] = useState("");
+  const [leadEmail, setLeadEmail] = useState("");
+  const [leadCode, setLeadCode] = useState("IN");
+  const [leadPhone, setLeadPhone] = useState("");
+  const [leadError, setLeadError] = useState<string | null>(null);
+  const [leadSent, setLeadSent] = useState(false);
+  const [leadSending, setLeadSending] = useState(false);
+  const [advisorOpen, setAdvisorOpen] = useState(false);
+  const [chatRefresh, setChatRefresh] = useState(0);
 
   if (user) return <Navigate to={user.role === "ADMIN" ? "/admin/tickets" : "/books"} replace />;
 
@@ -60,6 +85,7 @@ export function LoginPage() {
               Home
             </a>
             <a href="#packages">Packages</a>
+            <a href="#about">About</a>
             <a href="#login">Royalties</a>
             <a href="#login">Support</a>
           </nav>
@@ -147,14 +173,163 @@ export function LoginPage() {
         </div>
       </section>
 
+      <section className="reach" id="about">
+        <h2>Ready To Publish Your Book? Get in touch Now!</h2>
+        <form
+          className="reach-form"
+          onSubmit={async (event) => {
+            event.preventDefault();
+            setLeadError(null);
+            setLeadSent(false);
+            setLeadSending(true);
+            const dial = COUNTRY_CODES.find((item) => item.code === leadCode)?.dial ?? "";
+            try {
+              await api.post("/chat/sales", {
+                sessionId: salesSessionId(),
+                message: `I'd like to publish with BookLeaf. Name: ${leadName.trim()}. Email: ${leadEmail.trim()}. Phone: ${dial} ${leadPhone.trim()}.`,
+              });
+              setLeadSent(true);
+              setChatRefresh((value) => value + 1);
+            } catch (err) {
+              setLeadError(err instanceof ApiError ? err.message : "Couldn't send that. Try the publishing advisor.");
+            } finally {
+              setLeadSending(false);
+            }
+          }}
+        >
+          <label>
+            <span>Full Name *</span>
+            <input value={leadName} onChange={(event) => setLeadName(event.target.value)} required minLength={2} maxLength={80} autoComplete="name" />
+          </label>
+          <label>
+            <span>Email *</span>
+            <input type="email" value={leadEmail} onChange={(event) => setLeadEmail(event.target.value)} required autoComplete="email" />
+          </label>
+          <div className="reach-phone">
+            <label>
+              <span>Code *</span>
+              <select value={leadCode} onChange={(event) => setLeadCode(event.target.value)} aria-label="Country code">
+                {COUNTRY_CODES.map((item) => (
+                  <option key={item.code} value={item.code}>
+                    {item.code} {item.dial}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              <span>Phone *</span>
+              <input value={leadPhone} onChange={(event) => setLeadPhone(event.target.value)} required inputMode="tel" autoComplete="tel" maxLength={20} />
+            </label>
+          </div>
+          {leadError && <p className="reach-note">{leadError}</p>}
+          {leadSent && <p className="reach-note">Sent. The publishing advisor has your details.</p>}
+          <button className="btn btn-ink" disabled={leadSending}>
+            {leadSending ? "Sending…" : "Get In Touch"}
+          </button>
+        </form>
+      </section>
+
+      <section className="about-stats" aria-label="About BookLeaf">
+        <article>
+          <span className="about-icon" aria-hidden="true">
+            <PersonIcon />
+          </span>
+          <strong>150K+</strong>
+          <span>Community Members</span>
+        </article>
+        <article>
+          <span className="about-icon" aria-hidden="true">
+            <BookIcon />
+          </span>
+          <strong>22K+</strong>
+          <span>Books Published</span>
+        </article>
+        <article>
+          <span className="about-icon" aria-hidden="true">
+            <CopyIcon />
+          </span>
+          <strong>2M+</strong>
+          <span>Copies Sold</span>
+        </article>
+        <article>
+          <span className="about-icon" aria-hidden="true">
+            <GlobeIcon />
+          </span>
+          <strong>150+</strong>
+          <span>Countries Distributed</span>
+        </article>
+      </section>
+
+      <section className="featured">
+        <h2>Featured On</h2>
+        <div className="featured-row">
+          <span>Amazon India</span>
+          <span>Flipkart</span>
+          <span>Amazon US</span>
+          <span>Amazon UK</span>
+          <span>BookLeaf Store</span>
+        </div>
+      </section>
+
       <footer className="site-foot">BookLeaf Publishing · India &amp; US · Author royalties paid quarterly</footer>
+      {!advisorOpen && (
+        <button type="button" className="talk-fab" aria-label="Talk to BookLeaf" onClick={() => openSales.current()}>
+          <ChatIcon />
+        </button>
+      )}
       <ChatWidget
         kind="sales"
         hideLauncher
+        refreshKey={chatRefresh}
+        onOpenChange={setAdvisorOpen}
         onReady={(open) => {
           openSales.current = open;
         }}
       />
     </div>
+  );
+}
+
+function PersonIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.6">
+      <circle cx="12" cy="8" r="3" />
+      <path d="M6 19c1.2-2.5 3.2-3.5 6-3.5s4.8 1 6 3.5" />
+    </svg>
+  );
+}
+
+function BookIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.6">
+      <path d="M5 5.5A2.5 2.5 0 0 1 7.5 3H19v16H7.5A2.5 2.5 0 0 0 5 21.5z" />
+      <path d="M5 5.5V21" />
+    </svg>
+  );
+}
+
+function CopyIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.6">
+      <rect x="8" y="8" width="11" height="12" rx="1.5" />
+      <path d="M6 16H5.5A1.5 1.5 0 0 1 4 14.5v-10A1.5 1.5 0 0 1 5.5 3H15a1.5 1.5 0 0 1 1.5 1.5V6" />
+    </svg>
+  );
+}
+
+function GlobeIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.6">
+      <circle cx="12" cy="12" r="8" />
+      <path d="M4 12h16M12 4c2.2 2.4 2.2 13.6 0 16M12 4c-2.2 2.4-2.2 13.6 0 16" />
+    </svg>
+  );
+}
+
+function ChatIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="26" height="26" fill="currentColor" aria-hidden="true">
+      <path d="M12 3a9 9 0 0 0-7.8 13.5L3 21l4.7-1.1A9 9 0 1 0 12 3zm-3.2 9.2a1.1 1.1 0 1 1 0-2.2 1.1 1.1 0 0 1 0 2.2zm3.2 0a1.1 1.1 0 1 1 0-2.2 1.1 1.1 0 0 1 0 2.2zm3.2 0a1.1 1.1 0 1 1 0-2.2 1.1 1.1 0 0 1 0 2.2z" />
+    </svg>
   );
 }
