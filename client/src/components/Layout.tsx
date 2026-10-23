@@ -21,8 +21,11 @@ export function Layout() {
     <div className="app">
       <header className="topbar">
         <div className="topbar-inner">
-          <span className="brand">
-            BookLeaf <span className="brand-sub">{user?.role === "ADMIN" ? "Support Desk" : "Author Portal"}</span>
+          <span className="brand-lockup">
+            <span className="brand-mark" aria-hidden="true">
+              B
+            </span>
+            BookLeaf
           </span>
           <nav className="nav">
             {links.map((l) => (
@@ -42,6 +45,7 @@ export function Layout() {
       <main className="container">
         <Outlet />
       </main>
+      <footer className="site-foot">BookLeaf Publishing · {user?.role === "ADMIN" ? "Support Desk" : "Author Portal"}</footer>
       {user?.role === "AUTHOR" && <ChatWidget kind="support" />}
     </div>
   );

@@ -28,7 +28,17 @@ function salesSessionId() {
   return created;
 }
 
-export function ChatWidget({ kind, startOpen = false }: { kind: "sales" | "support"; startOpen?: boolean }) {
+export function ChatWidget({
+  kind,
+  startOpen = false,
+  onReady,
+  hideLauncher = false,
+}: {
+  kind: "sales" | "support";
+  startOpen?: boolean;
+  onReady?: (open: () => void) => void;
+  hideLauncher?: boolean;
+}) {
   const copy = COPY[kind];
   const [open, setOpen] = useState(startOpen);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -38,6 +48,12 @@ export function ChatWidget({ kind, startOpen = false }: { kind: "sales" | "suppo
   const [error, setError] = useState<string | null>(null);
   const logRef = useRef<HTMLDivElement>(null);
   const sessionId = useRef<string | null>(null);
+  const onReadyRef = useRef(onReady);
+  onReadyRef.current = onReady;
+
+  useEffect(() => {
+    onReadyRef.current?.(() => setOpen(true));
+  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -175,7 +191,7 @@ export function ChatWidget({ kind, startOpen = false }: { kind: "sales" | "suppo
           </form>
         </section>
       )}
-      {!(startOpen && open) && (
+      {!hideLauncher && !(startOpen && open) && (
         <button type="button" className="btn btn-primary chat-launcher" onClick={() => setOpen((value) => !value)}>
           {open ? "Hide chat" : copy.launcher}
         </button>
