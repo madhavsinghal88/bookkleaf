@@ -22,8 +22,12 @@
    - Ticket creation never waits on the AI.
 
    The live app works with or without an API key.
-4. **Cost you can see.**
-   - `gpt-4o-mini` does classification, live chat, and drafts. Drafts are still generated once per conversation state.
+4. **Two AI assistants beside the ticket loop.**
+   - The publishing advisor sits on the public site, before anyone signs in. It answers from the public offer: Standard Free, the publishing path, royalties, and where finished books are listed. It cannot see an account. It describes Bestseller Breakthrough and does not quote a price for it.
+   - The author assistant is the Help button inside the portal. It sees only that author's books. It quotes the same figures the server already computed: titles, sales, paid and pending royalty, status, and the next payout date. When a person has to change something, it tells the author to open a query. It does not open one itself.
+   - Both chats start a new conversation and keep earlier ones. A saved chat stays on that thread. If the model is down, each one falls back to a guide answer that uses the same policy and, for authors, the same account figures.
+5. **Cost you can see.**
+   - `gpt-4o-mini` does classification, both assistants, and drafts. Drafts are still generated once per conversation state.
    - Static prompt blocks are cached, and history is capped.
    - Each draft is generated once per conversation state.
    - Every call is logged, so the Insights page shows real spend and how often admins override the AI.
@@ -32,7 +36,8 @@
 
 - **Polling over WebSockets.** Serverless hosting can't hold connections open. Polling every 5 seconds with ETag/304 responses is cheap and simple, and replies appeared in about 4 seconds in testing. A managed realtime service is the upgrade path.
 - **Category-scoped knowledge base instead of embedding retrieval.** The knowledge base is small and structured, so routing by the predicted category is cheaper, deterministic, and easy to explain. If a ticket is misclassified, the admin fixes the category and regenerates the draft.
-- **Drafts are always reviewed by a human, never auto-sent.** That's the right default until accuracy has been measured on real tickets.
+- **Drafts are always reviewed by a human, never auto-sent.** That's the right default until accuracy has been measured on real tickets. The assistants are the same idea in chat: they answer, and they never send a support reply or change a ticket.
+- **Chat history is one thread at a time.** Help and the publishing advisor open a new chat and keep earlier ones, named from the first message. That is enough history without an inbox. Each reply only sends the last few turns.
 - **Not built in 4 days:** a real file upload pipeline, cookie-based sessions, an automated test suite, and a formal eval set.
 
 ## Evolving it into a production system
