@@ -23,7 +23,7 @@
 
    The live app works with or without an API key.
 4. **Cost you can see.**
-   - The cheap model (Haiku) does classification; Opus at low effort writes the customer-facing drafts.
+   - `gpt-4o-mini` does classification, live chat, and drafts. Drafts are still generated once per conversation state.
    - Static prompt blocks are cached, and history is capped.
    - Each draft is generated once per conversation state.
    - Every call is logged, so the Insights page shows real spend and how often admins override the AI.

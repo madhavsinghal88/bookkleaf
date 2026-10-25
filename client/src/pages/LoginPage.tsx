@@ -20,12 +20,19 @@ function salesSessionId() {
   return created;
 }
 
-// Demo accounts from the seeded dataset, so reviewers can log in in one click.
+// Every author in bookleaf_sample_data.json, in file order, plus the support desk.
 const DEMO_ACCOUNTS = [
-  { label: "Ananya Reddy", email: "ananya.reddy@email.com", password: "author123" },
-  { label: "Sneha Kulkarni", email: "sneha.kulkarni@email.com", password: "author123" },
-  { label: "Kavita Deshmukh", email: "kavita.deshmukh@email.com", password: "author123" },
-  { label: "Admin: Aisha Verma", email: "admin@bookleaf.com", password: "admin123" },
+  { label: "Priya Sharma", email: "priya.sharma@email.com", password: "author123", detail: "Mumbai" },
+  { label: "Rohit Kapoor", email: "rohit.kapoor@email.com", password: "author123", detail: "Delhi" },
+  { label: "Ananya Reddy", email: "ananya.reddy@email.com", password: "author123", detail: "Hyderabad" },
+  { label: "Vikram Joshi", email: "vikram.joshi@email.com", password: "author123", detail: "Pune" },
+  { label: "Meera Nair", email: "meera.nair@email.com", password: "author123", detail: "Kochi" },
+  { label: "Arjun Malhotra", email: "arjun.malhotra@email.com", password: "author123", detail: "Chandigarh" },
+  { label: "Sneha Kulkarni", email: "sneha.kulkarni@email.com", password: "author123", detail: "Bangalore" },
+  { label: "Farhan Sheikh", email: "farhan.sheikh@email.com", password: "author123", detail: "Lucknow" },
+  { label: "Kavita Deshmukh", email: "kavita.deshmukh@email.com", password: "author123", detail: "Nagpur" },
+  { label: "Diya Chatterjee", email: "diya.chatterjee@email.com", password: "author123", detail: "Kolkata" },
+  { label: "Admin: Aisha Verma", email: "admin@bookleaf.com", password: "admin123", detail: "Support desk" },
 ];
 
 function Brand({ compact = false }: { compact?: boolean }) {
@@ -150,6 +157,7 @@ export function LoginPage() {
           </div>
         </form>
         <div className="demo-accounts">
+          <p className="demo-caption">Sample authors from the dataset. Every author password is author123.</p>
           {DEMO_ACCOUNTS.map((account) => (
             <button
               key={account.email}
@@ -158,7 +166,10 @@ export function LoginPage() {
               disabled={submitting}
               onClick={() => void signInAs(account.email, account.password)}
             >
-              {account.label}
+              <span>{account.label}</span>
+              <small>
+                {account.detail} · {account.email}
+              </small>
             </button>
           ))}
         </div>

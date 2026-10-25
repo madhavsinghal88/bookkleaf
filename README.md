@@ -15,11 +15,12 @@ Start the app with the steps under [Running locally](#running-locally), then ope
 
 ### Sign in
 
-On the login page, click a name under the form. **Ananya Reddy** is the fullest author account. One click signs that person in and opens their home screen. You can also type an email and password and press **Submit**.
+On the login page, every author from the sample file is listed under the form, with city and email. One click signs that person in. The password for every author is `author123`. You can also type an email and password and press **Submit**.
 
 | Button | Opens |
 |---|---|
-| Ananya Reddy | My Books, with five titles |
+| Priya Sharma through Diya Chatterjee | That author's books, in the same order as the sample file |
+| Ananya Reddy | The fullest author account, with five titles |
 | Sneha Kulkarni | An author who still has a book in production |
 | Kavita Deshmukh | An author with a book in typesetting and a royalty below the payout threshold |
 | Admin: Aisha Verma | The support desk |
